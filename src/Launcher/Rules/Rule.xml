@@ -1,0 +1,108 @@
+﻿<Rule Name="VsTestConsoleDebugLaunchProfile"
+			DisplayName="VSTest Console"
+			PageTemplate="commandNameBasedDebugger"
+			Description="VSTest Debugger launcher options"
+			xmlns:sys="clr-namespace:System;assembly=mscorlib"
+			xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			xmlns="http://schemas.microsoft.com/build/2009/properties">
+		<!-- https://github.com/dotnet/project-system/blob/main/docs/repo/property-pages/property-specification.md -->
+		<!-- https://github.com/microsoft/VSProjectSystem/blob/master/doc/extensibility/property_value_editors.md -->
+		<Rule.Metadata>
+				<sys:String x:Key="CommandName">VSTestConsole</sys:String>
+		</Rule.Metadata>
+		<Rule.DataSource>
+				<DataSource  Persistence="LaunchProfile" HasConfigurationCondition="False" ItemType="LaunchProfile" />
+		</Rule.DataSource>
+
+		<EnumProperty Name="targetType"
+									Description="If true, the target will be the selected project"
+									DisplayName="Target Type"
+									>
+				<EnumValue Name="Project" DisplayName="Project" />
+				<EnumValue Name="Executable" DisplayName="Executable" />
+		</EnumProperty>
+
+		<StringProperty Name="exeTarget"
+										Description="Path of the file that will be tested"
+										Subtype="file"
+										DisplayName="Target">
+				<StringProperty.ValueEditors>
+						<ValueEditor EditorType="FilePath">
+								<ValueEditor.Metadata>
+										<NameValuePair Name="FileTypeFilter" Value="Assembly Files (*.dll)|*.dll|All files (*.*)|*.*" />
+								</ValueEditor.Metadata>
+						</ValueEditor>
+				</StringProperty.ValueEditors>
+				<StringProperty.Metadata>
+						<NameValuePair Name="DependsOn" Value="VSTestConsole::targetType" />
+						<NameValuePair Name="VisibilityCondition">
+								<NameValuePair.Value>(eq
+																				(unevaluated "VSTestConsole" "targetType")
+																				"Executable"
+																		 )
+							 </NameValuePair.Value>
+						</NameValuePair>
+				</StringProperty.Metadata>
+		</StringProperty>
+
+		<DynamicEnumProperty Name="projectTarget"
+												 EnumProvider="ProjectTargetListProvider"
+												 DisplayName="Project"
+												 Description="Select a project to target">
+				<DynamicEnumProperty.Metadata>
+						<NameValuePair Name="DependsOn" Value="VSTestConsole::targetType" />
+						<NameValuePair Name="VisibilityCondition">
+								<NameValuePair.Value>(eq
+																				(unevaluated "VSTestConsole" "targetType")
+																				"Project"
+																		 )
+							 </NameValuePair.Value>
+						</NameValuePair>
+				</DynamicEnumProperty.Metadata>
+		</DynamicEnumProperty>
+
+		<StringProperty Name="workingDirectory"
+										DisplayName="Working Directory"
+										Description="Path to the working directory where the process will be started. If left empty, the process will be started from the directory containing the executable (Deployment directory)."
+												/>
+
+		<StringProperty Name="commandLineArgs"
+										DisplayName="Additional Command Line"
+										Description="Command Line Arguments to pass to the executable. You may break arguments into multiple lines.">
+				<StringProperty.ValueEditors>
+						<ValueEditor EditorType="MultiLineString" />
+				</StringProperty.ValueEditors>
+		</StringProperty>
+
+
+		<BoolProperty Name="autoDetectSettingsFile"
+									DisplayName="Auto Detect Settings"
+									Description="If true, try to detect the settings file path" />
+
+		<StringProperty Name="settingsFilePath"
+										DisplayName="Settings File"
+										Description="Path to the settings file to use, if any">
+				<StringProperty.Metadata>
+						<NameValuePair Name="VisibilityCondition">
+								<NameValuePair.Value>(has-evaluated-value "VSTestConsole" "autoDetectSettingsFile" true)</NameValuePair.Value>
+						</NameValuePair>
+				</StringProperty.Metadata>
+		</StringProperty>
+
+		<StringProperty Name="environmentVariables"
+										DisplayName="Environment variables"
+										Description="The environment variables to set prior to running the process.">
+				<StringProperty.ValueEditors>
+						<ValueEditor EditorType="NameValueList">
+								<ValueEditor.Metadata>
+										<NameValuePair Name="Encoding" Value="TestAdapterKeyValueEncoding" />
+								</ValueEditor.Metadata>
+						</ValueEditor>
+				</StringProperty.ValueEditors>
+		</StringProperty>
+
+		<StringProperty Name="executablePath"
+						DisplayName="Executable"
+						Description="Path to the executable file" />
+
+</Rule>

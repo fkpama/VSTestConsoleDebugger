@@ -1,0 +1,148 @@
+resources:
+ repositories:
+   - repository: BuildTools
+     type: git
+     name: Framework/BuildTools
+     ref: dev
+
+trigger:
+  branches:
+    include:
+      - master
+      - dev
+
+  paths:
+    include:
+      - src
+
+pr:
+  branches:
+    include:
+    - dev
+    - master
+
+pool:
+  vmImage: windows-2022
+
+
+parameters:
+- name: PublishToMarketPlace
+  displayName: Publish to MarketPlace
+  type: boolean
+  default: false
+
+- name: PublishToOpenVsixGallery
+  displayName: Publish To OpenVsix gallery
+  type: boolean
+  default: false
+
+- name: Version
+  type: string
+  default: '*'
+
+- name: DebugBuild
+  displayName: Debug Pipeline Build
+  type: boolean
+  default: false
+
+variables:
+- group: VS_MarketPlace
+- group: GitHub
+
+- name: BuildConfiguration
+  value: Release
+  readonly: true
+
+- name: SourcesDirectory
+  value: $(Build.SourcesDirectory)\VSTestConsoleDebugger\
+  readonly: true
+
+- name: BuildToolsScriptDir
+  readonly: true
+  value: $(Build.SourcesDirectory)/BuildTools/Scripts/
+
+- name: CodeSigningKey
+  readonly: true
+  value: CodeSigning.snk
+
+- name: VsPackage.ProjectDirectory
+  value: $(SourcesDirectory)src\VsPackage
+  readonly: true
+
+- name: VsPackage.ProjectPath
+  value: $(VsPackage.ProjectDirectory)\VSTestConsoleDebugger.csproj
+  readonly: true
+
+- name: VsPackage.SourceManifest
+  value: $(VsPackage.ProjectDirectory)\source.extension.vsixmanifest
+  readonly: true
+
+- name: NetCoreProjects
+  value: $(SourcesDirectory)src/Launcher/Launcher.csproj
+  readonly: true
+
+steps:
+- checkout: BuildTools
+
+- checkout: self
+  persistCredentials: true
+  fetchDepth: 0
+  fetchTags: true
+  submodules: recursive
+  clean: true
+
+- task: DownloadSecureFile@1
+  displayName: Download Key
+  inputs:
+    secureFile: $(CodeSigningKey)
+
+- task: PowerShell@2
+  displayName: Prepare Build Environment
+  inputs:
+    workingDirectory: $(SourcesDirectory)
+    targetType: inline
+    script: |
+      Import-Module $(BuildToolsScriptDir)Modules/VSUtils-Module.ps1
+
+      $buildToolsVersion = Get-VSSDKBuildToolsVersion
+      Write-Output "##vso[task.setvariable variable=VSSDKBuildToolsVersion;]$buildToolsVersion"
+
+      echo "##[command]New-Item -ItemType Directory -Force $(SourcesDirectory)Keys"
+      New-Item -ItemType Directory -Force "$(SourcesDirectory)Keys" | Out-Null
+
+      echo "##[command]copy '$(Agent.TempDirectory)\$(CodeSigningKey)' '$(SourcesDirectory)Keys\key.snk'"
+      Copy-Item -Path "$(Agent.TempDirectory)\$(CodeSigningKey)" -Destination "$(SourcesDirectory)Keys\key.snk" | Out-Null
+
+      New-PipelineVariable SigningKeyFile "$(SourcesDirectory)Keys\key.snk"
+
+      echo "Initializing visual studio Environment"
+      &"$(BuildToolsScriptDir)/Setup-VisualStudio.ps1"
+
+      New-PipelineVariable SolutionDir $(SourcesDirectory)
+
+      exit 0
+
+- template: Pipelines/vsix-incrementversion-template.yml@BuildTools
+  parameters:
+    SourceManifest: $(VsPackage.ProjectDirectory)\source.extension.vsixmanifest
+    Version: ${{ parameters.Version }}
+
+- template: Pipelines/vsix-publish-template.yml@BuildTools
+  parameters:
+    BuildConfiguration: $(BuildConfiguration)
+    GitHubRepository: true
+    #SourcesDirectory: $(SourcesDirectory)
+    VsixCompile.DebugBuild: ${{ parameters.DebugBuild }}
+    VsixCompile.ProjectPath: $(VsPackage.ProjectPath)
+    VsixCompile.AdditionalParameters:
+    netCoreProjects: $(NetCoreProjects)
+    VsixCompile.SigningKeyFile: $(SigningKeyFile)
+    PublishToMarketPlace: ${{ parameters.PublishToMarketPlace }}
+    PublishToOpenVsixGallery: ${{ parameters.PublishToOpenVsixGallery }}
+    MarketPlace.AccessToken: $(VS_MarketPlace.AccessToken)
+    MarketPlace.Publisher: $(VS_MarketPlace.Publisher)
+    MarketPlace.Overview: "$(VsPackage.ProjectDirectory)/overview.md"
+    MarketPlace.AdditionalCommandLine:
+    MarketPlace.Categories:
+      testing
+    UnitTestsProjects: ${{ variables['UnitTestsProjects'] }}

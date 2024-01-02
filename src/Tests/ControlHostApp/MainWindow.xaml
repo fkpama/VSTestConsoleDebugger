@@ -1,0 +1,30 @@
+﻿<Window x:Uid="Window_1" x:Class="ControlHostApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ControlHostApp"
+        xmlns:controls="clr-namespace:Launcher.Controls;assembly=Launcher"
+        Background="#2F2F2FFF"
+        Foreground="White"
+        xmlns:vms="clr-namespace:Launcher.ViewModels;assembly=Launcher"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0">
+            <StackPanel Margin="15,5" Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button Click="OnReloadComponent">Reload</Button>
+            </StackPanel>
+        </Border>
+        <ContentControl Grid.Row="2" Name="TestedContentConainer">
+            <controls:ProjectSelectorControl />
+        </ContentControl>
+    </Grid>
+</Window>

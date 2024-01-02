@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+	<PropertyGroup Condition="'$(SignAssembly)'=='true'">
+		<AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)../build/key.snk</AssemblyOriginatorKeyFile>
+		<CopyVSReferenceLocal Condition="'$(CopyVSReferenceLocal)'==''">false</CopyVSReferenceLocal>
+	</PropertyGroup>
+	<ItemGroup Condition="'$(UseProjectSystem)'=='true'">
+		<!--<PackageReference Include="Microsoft.VisualStudio.ProjectSystem" Version="*" />-->
+		<Reference Include="Microsoft.VisualStudio.ProjectSystem.Managed.dll"
+		           Private="$(CopyVSReferenceLocal)">
+			<HintPath>$(DevEnvDir)\Extensions\Microsoft\ManagedProjectSystem\Microsoft.VisualStudio.ProjectSystem.Managed.dll</HintPath>
+		</Reference>
+		<Reference Include="Microsoft.VisualStudio.ProjectSystem.Managed.VS.dll"
+		           Private="$(CopyVSReferenceLocal)">
+			<HintPath>$(DevEnvDir)\Extensions\Microsoft\ManagedProjectSystem\Microsoft.VisualStudio.ProjectSystem.Managed.VS.dll</HintPath>
+		</Reference>
+		<Reference Include="Microsoft.VisualStudio.ProjectSystem.VS.dll"
+		           Private="$(CopyVSReferenceLocal)">
+			<HintPath>$(DevEnvDir)\CommonExtensions\Microsoft\Project\Microsoft.VisualStudio.ProjectSystem.VS.dll</HintPath>
+		</Reference>
+		<Reference Include="Microsoft.VisualStudio.ProjectSystem.dll"
+		           Private="$(CopyVSReferenceLocal)">
+			<HintPath>$(DevEnvDir)\CommonExtensions\Microsoft\Project\Microsoft.VisualStudio.ProjectSystem.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)'=='net472'">
+		<Using Remove="System.Net.Http"/>
+	</ItemGroup>
+	<Import Project="$([MSBuild]::GetPathOfFileAbove('LocalProjects.targets', '$(MSBuildThisFileDirectory)/..'))"
+	        Condition="Exists($([MSBuild]::GetPathOfFileAbove('LocalProjects.targets', '$(MSBuildThisFileDirectory)/..')))"/>
+</Project>

@@ -1,0 +1,71 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+		<PropertyGroup>
+				<TargetFramework>net472</TargetFramework>
+				<ImplicitUsings>enable</ImplicitUsings>
+				<Nullable>enable</Nullable>
+				<UseProjectSystem>true</UseProjectSystem>
+
+				<SignAssembly Condition="'$(SignAssembly)'==''">true</SignAssembly>
+				<UseWPF>true</UseWPF>
+
+				<NoWarn>VSTHRD103;VSTHRD200</NoWarn>
+		</PropertyGroup>
+
+		<ItemGroup>
+				<Reference Include="Microsoft.VisualStudio.ProjectSystem.VS.Implementation.dll">
+						<HintPath>$(DevEnvDir)\CommonExtensions\Microsoft\Project\Microsoft.VisualStudio.ProjectSystem.VS.Implementation.dll</HintPath>
+						<Private>false</Private>
+				</Reference>
+		</ItemGroup>
+
+		<ItemGroup>
+				<PackageReference Include="Microsoft.VisualStudio.Validation" Version="17.6.11" />
+				<PackageReference Include="System.Collections.Immutable" Version="7.0.0" />
+				<PackageReference Include="Microsoft.VisualStudio.Threading" Version="17.7.30" />
+				<PackageReference Include="Microsoft.Build" Version="16.5.*" />
+				<PackageReference Include="Sodiware.VisualStudio.ProjectSystem.Sdk" Version="[0.0.4,)" />
+				<PackageReference Include="Sodiware.VisualStudio.ProjectSystem" Version="*" />
+				<PackageReference Include="Sodiware.VisualStudio.PlatformUI" Version="17.*" />
+				<!--<PackageReference Include="Microsoft.VisualStudio.ProjectSystem.Sdk.Tools" Version="*"
+													PrivateAssets="All"
+													/>-->
+		</ItemGroup>
+
+		<ItemGroup>
+		  <Content Include="Rules\*.xml" CopyToOutputDirectory="PreserveNewest" />
+		</ItemGroup>
+
+		<!--<ItemGroup>
+				<XamlPropertyRule Include="Rules\*.xml">
+						<Namespace>Launcher</Namespace>
+						--><!-- optional --><!--
+						<DataAccess>IRule</DataAccess>
+						--><!-- None or IRule. IRule adds APIs for accessing the properties --><!--
+						<RuleInjectionClassName>MyLaunchProfile%(Filename)</RuleInjectionClassName>
+						--><!-- Name of the generated class. --><!--
+						<RuleInjection>ProjectLevel</RuleInjection>
+						--><!-- None or ProjectLevel. None means no class is generated. --><!--
+				</XamlPropertyRule>
+		</ItemGroup>-->
+
+		<ItemGroup Condition="'$(Configuration)'=='Debug' AND '$(SignAssembly)'=='false'">
+				<!--<InternalsVisibleTo Include="UnitTests, PublickKey=0024000004800000940000000602000000240000525341310004000001000100bd5b25f7b261ec4894a79a7afd20524d67a34821d67c9a7ba575c12b44acaa16784c5a5ff2967cff96bb4633b64a5b83da44fd8ceb9c4e89e5c0fdf99f00f6d263a08f718f24ef5c43e97972c0c665f43c73302af58781b93e0c3bee5d7fb27f1e4dca0ef6b159ab416f84bece0dc301a7d35ee856b418ccc5e56e666dcca4e1" />-->
+				<InternalsVisibleTo Include="UnitTests;DynamicProxyGenAssembly2" />
+		</ItemGroup>
+
+		<ItemGroup>
+		  <Compile Update="Resources.Designer.cs">
+		    <DesignTime>True</DesignTime>
+		    <AutoGen>True</AutoGen>
+		    <DependentUpon>Resources.resx</DependentUpon>
+		  </Compile>
+		</ItemGroup>
+
+		<ItemGroup>
+		  <EmbeddedResource Update="Resources.resx">
+		    <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+		    <Generator>ResXFileCodeGenerator</Generator>
+		  </EmbeddedResource>
+		</ItemGroup>
+</Project>

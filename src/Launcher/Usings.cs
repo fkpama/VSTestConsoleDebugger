@@ -1,0 +1,10 @@
+﻿global using System.ComponentModel.Composition;
+global using Microsoft.VisualStudio.ProjectSystem;
+global using Microsoft.VisualStudio.ProjectSystem.Debug;
+global using System.Collections.Immutable;
+global using System.IO;
+global using System.Diagnostics;
+global using Sodiware;
+global using Sodiware.VisualStudio;
+global using Sodiware.VisualStudio.PlatformUI;
+global using ProjectCapabilities = Sodiware.VisualStudio.ProjectCapabilities;

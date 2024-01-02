@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+	<PropertyGroup>
+		<LangVersion>latest</LangVersion>
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(BuildingInsideVisualStudio)'!='true' OR '$(TF_BUILD)'!=''">
+		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+		<RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+	</PropertyGroup>
+</Project>

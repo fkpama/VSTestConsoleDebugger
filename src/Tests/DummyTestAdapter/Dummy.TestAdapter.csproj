@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net461</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  <DebugType>full</DebugType>
+  <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+		<ItemGroup>
+				<PackageReference Include="Microsoft.TestPlatform.ObjectModel" Version="17.5.0" PrivateAssets="all" />
+		</ItemGroup>
+</Project>
