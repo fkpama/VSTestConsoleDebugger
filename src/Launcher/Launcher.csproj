@@ -13,6 +13,7 @@
 		</PropertyGroup>
 
 		<ItemGroup>
+				<PackageReference Include="Microsoft.Diagnostics.Runtime" Version="3.1.456101" />
 				<Reference Include="Microsoft.VisualStudio.ProjectSystem.VS.Implementation.dll">
 						<HintPath>$(DevEnvDir)\CommonExtensions\Microsoft\Project\Microsoft.VisualStudio.ProjectSystem.VS.Implementation.dll</HintPath>
 						<Private>false</Private>

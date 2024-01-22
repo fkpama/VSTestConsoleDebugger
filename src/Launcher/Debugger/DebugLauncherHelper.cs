@@ -1,4 +1,8 @@
-﻿using Launcher.Settings;
+﻿using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using Launcher.Settings;
+using Microsoft.Diagnostics.Runtime;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.ProjectSystem.Build;
 using Microsoft.VisualStudio.ProjectSystem.VS.Debug;
@@ -76,13 +80,13 @@ namespace Launcher.Debugger
             };
             env.CopyTo(si.Environment);
 
-            var type = DebuggerType.ManagedOnly;
             sessionProcess = new DebugSession(si, log);
 
-            var pidTask = sessionProcess.StartAsync(cancellationToken);
-            var engineTask = DebuggerEngines.GetDebugEngineAsync(type, this.imageTypeService);
-
-            var (pid, engine) = await TaskEx.WhenAll(pidTask, engineTask).NoAwait();
+            var pid = await sessionProcess.StartAsync(cancellationToken).NoAwait();
+            var type = getDebuggerType(pid);
+            var engine = await DebuggerEngines
+                .GetDebugEngineAsync(type, this.imageTypeService)
+                .NoAwait();
 
             var settings = new DebugLaunchSettings(options)
             {
@@ -98,14 +102,46 @@ namespace Launcher.Debugger
             return settings;
         }
 
+        private static DebuggerType getDebuggerType(int pid)
+        {
+            var targets = getTargetFramework(pid);
+            if (targets.Length == 0)
+            {
+                // TODO: Log
+                return DebuggerType.ManagedCore;
+            }
+            return targets[0];
+            static DebuggerType[] getTargetFramework(int pid)
+            {
+                using var dataTarget = DataTarget.AttachToProcess(pid, false);
+                var lst = new List<DebuggerType>();
+                foreach (var version in dataTarget.ClrVersions)
+                {
+                    using var rt = version.CreateRuntime();
+                    var flavor = rt.ClrInfo.Flavor;
+                    switch (flavor)
+                    {
+                        case ClrFlavor.Desktop:
+                            lst.Add(DebuggerType.ManagedOnly);
+                            break;
+                        case ClrFlavor.Core:
+                            lst.Add(DebuggerType.ManagedCore);
+                            break;
+                        default:
+                            // TODO
+                            break;
+                    }
+                }
+                return lst.ToArray();
+            }
+        }
+
         private async Task<string> getTargetPath(Target entry, CancellationToken cancellationToken)
         {
             string? targetPath;
             if (entry.Mode == ProjectSelectorAction.Project)
             {
-                var project = this.services.GetSolution().GetProjectOfGuid(entry.Id!.Value);
-                if (project is null)
-                    throw new NotImplementedException();
+                var project = this.services.GetSolution().GetProjectOfGuid(entry.Id!.Value) ?? throw new NotImplementedException();
                 targetPath = await project.GetBuildPropertyValueAsync(VSConstantsEx.MSBuildProperties.TargetPath).NoAwait();
                 if (targetPath.IsMissing())
                     throw new NotImplementedException();
