@@ -1,34 +1,38 @@
-﻿using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
-using Launcher.Settings;
+﻿using Launcher.Settings;
 using Microsoft.Diagnostics.Runtime;
-using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.ProjectSystem.Build;
+using Microsoft.VisualStudio.ProjectSystem.VS;
 using Microsoft.VisualStudio.ProjectSystem.VS.Debug;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
+using Sodiware.VisualStudio.Debugger;
 using Sodiware.VisualStudio.Logging;
-using static Microsoft.VisualStudio.VSConstants;
 
 namespace Launcher.Debugger
 {
+    internal interface IDebugLaunchHost
+    {
+        Task LaunchAsync(DebugLaunchSettings settings, CancellationToken cancellationToken);
+    }
     internal sealed class DebugLauncherHelper : IDisposable
     {
         private readonly IServiceProvider services;
         private readonly ITestAdapterSettings adapterSettings;
+        private readonly IDebugLaunchHost host;
         private readonly Lazy<IDebuggerImageTypeService> imageTypeService;
         private readonly IOutputGroupsService outputs;
         private readonly IVsHierarchy projectHier;
         private DebugSession? sessionProcess;
         private readonly IProjectThreadingService threadingService;
         private readonly AsyncLazy<ILogger> _log;
+        private readonly AsyncLazy<IVsDebugger> m_debugger;
 
         private ILogger log => _log.GetValue();
 
         public DebugLauncherHelper(IServiceProvider services,
                                    ITestAdapterSettings adapterSettings,
+                                   IDebugLaunchHost host,
                                    IOutputGroupsService outputs,
                                    IVsHierarchy projectHier,
                                    IProjectThreadingService threadingService,
@@ -36,14 +40,20 @@ namespace Launcher.Debugger
         {
             this.services = services;
             this.adapterSettings = adapterSettings;
+            this.host = host;
             this.imageTypeService = imageTypeService;
             this._log = new(adapterSettings.GetLoggerAsync, threadingService.JoinableTaskFactory);
+            this.m_debugger = new(async () =>
+            {
+                await threadingService.SwitchToUIThread();
+                return this.services.GetService<SVsShellDebugger, IVsDebugger>();
+            }, threadingService.JoinableTaskFactory);
             this.outputs = outputs;
             this.projectHier = projectHier;
             this.threadingService = threadingService;
         }
 
-        public async Task<DebugLaunchSettings> LaunchAsync(LaunchRequest request, CancellationToken cancellationToken)
+        public async Task<DebugLaunchSettings?> LaunchAsync(LaunchRequest request, CancellationToken cancellationToken)
         {
             var exe = await this.outputs
                 .GetKeyOutputAsync(cancellationToken)
@@ -80,26 +90,59 @@ namespace Launcher.Debugger
             };
             env.CopyTo(si.Environment);
 
-            sessionProcess = new DebugSession(si, log);
+            sessionProcess = new DebugSession(si,
+                                              this.threadingService,
+                                              this.m_debugger,
+                                              log);
 
-            var pid = await sessionProcess.StartAsync(cancellationToken).NoAwait();
-            var type = getDebuggerType(pid);
-            var engine = await DebuggerEngines
+            int pid;
+            Guid engine;
+            DebugLaunchSettings? settings = null;
+            if (request.Target.Mode == ProjectSelectorAction.Project)
+            {
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        await this.BuildAsync(request.Target).NoAwait();
+                    }
+                    catch (BuildFailedException)
+                    {
+                        return;
+                    }
+                    (pid, engine, settings) = await doStartAsync().NoAwait();
+                    await this.host.LaunchAsync(settings, cancellationToken).NoAwait();
+                }).FileAndForget();
+            }
+            else
+            {
+                (pid, engine, settings) = await doStartAsync().NoAwait();
+            }
+
+            return settings;
+
+            async Task<(int pid, Guid engine, DebugLaunchSettings settings)> doStartAsync()
+            {
+                log.LogVerbose($"Loading command \"{vsTestConsolePath}\" {string.Join(" ", args)}");
+                var pid = await sessionProcess.StartAsync(cancellationToken).NoAwait();
+                var type = getDebuggerType(pid);
+                var engine = await DebuggerEngines
                 .GetDebugEngineAsync(type, this.imageTypeService)
                 .NoAwait();
 
-            var settings = new DebugLaunchSettings(options)
-            {
-                Executable = vsTestConsolePath,
-                CurrentDirectory = workingDir,
-                LaunchDebugEngineGuid = engine,
-                ProcessId = pid,
-                LaunchOperation = DebugLaunchOperation.AlreadyRunning,
-                Project = this.projectHier
-            };
-            env.CopyTo(settings.Environment);
+                var settings = new DebugLaunchSettings(options)
+                {
+                    Executable = vsTestConsolePath,
+                    CurrentDirectory = workingDir,
+                    LaunchDebugEngineGuid = engine,
+                    ProcessId = pid,
+                    LaunchOperation = DebugLaunchOperation.AlreadyRunning,
+                    Project = this.projectHier
+                };
+                env.CopyTo(settings.Environment);
+                return (pid, engine, settings);
+            }
 
-            return settings;
         }
 
         private static DebuggerType getDebuggerType(int pid)
@@ -142,7 +185,7 @@ namespace Launcher.Debugger
             if (entry.Mode == ProjectSelectorAction.Project)
             {
                 var project = this.services.GetSolution().GetProjectOfGuid(entry.Id!.Value) ?? throw new NotImplementedException();
-                targetPath = await project.GetBuildPropertyValueAsync(VSConstantsEx.MSBuildProperties.TargetPath).NoAwait();
+                targetPath = await project.GetBuildPropertyValueAsync(VSConstantsEx.MSBuildProperties.TargetPath, cancellationToken).NoAwait();
                 if (targetPath.IsMissing())
                     throw new NotImplementedException();
             }
@@ -168,52 +211,15 @@ namespace Launcher.Debugger
                 await this.threadingService.SwitchToUIThread();
 
             var solution = this.services.GetSolution();
-            var project = (IVsProject?)solution.GetProjectOfGuid(target.Id.Value);
-            if (project is null)
-            {
-                throw new NotImplementedException();
-            }
-
-            var cfg = project.GetActiveCfg() as IVsProjectCfg;
-            if (cfg is null)
-            {
-                throw new NotImplementedException();
-            }
-            ErrorHandler.ThrowOnFailure(cfg.get_BuildableProjectCfg(out var b));
-
-            var buildManager = this.services.GetService<SVsBuildManagerAccessor, IVsBuildManagerAccessor4>();
-            var available = buildManager.UIThreadIsAvailableForBuild;
-            var hr = buildManager.AcquireBuildResources(VSBUILDMANAGERRESOURCE.VSBUILDMANAGERRESOURCE_UITHREAD, out var cookie);
-            ErrorHandler.ThrowOnFailure(hr);
-            try
-            {
-                var b1 = buildManager.SolutionBuildAvailable.ToInt32();
-                //hr = buildManager.ClaimUIThreadForBuild();
-                //ErrorHandler.ThrowOnFailure(hr);
-                var tcs = new TaskCompletionSource();
-                void handler(object o, ProjectBuildEndEventArgs e)
-                {
-                    ProjectEvents.OnBuildEnd -= handler;
-                    tcs.SetAsyncCompleted();
-                };
-                ProjectEvents.OnBuildEnd += handler;
-                var pane = Logger.GetOutputWindowPane(OutputWindowPaneGuid.BuildOutputPane_guid);
-                ErrorHandler.ThrowOnFailure(b.StartBuild(pane, 0));
-                await tcs.Task.WithTimeout(TimeSpan.FromSeconds(5));
-                //hr = buildManager.ReleaseUIThreadForBuild();
-            }
-            finally
-            {
-                if (cookie != 0)
-                {
-                    buildManager.ReleaseBuildResources(cookie);
-                }
-            }
-            await TaskScheduler.Default;
+            var project = (IVsProject?)solution.GetProjectOfGuid(target.Id.Value)
+                ?? throw new NotImplementedException();
+            await project.BuildAsync().NoAwait();
         }
 
         internal void RegisterPids(uint[] pids)
         {
+            Assumes.NotNull(this.sessionProcess);
+            this.sessionProcess?.Add(pids);
         }
     }
 }

@@ -12,10 +12,12 @@ namespace Launcher
     [Export(typeof(IDebugProfileLaunchTargetsProvider))]
     [AppliesTo(Constants.VsTestConsoleCapability)]
     internal sealed class DebugProfileTargetsLaunchProvider
-        : IDebugProfileLaunchTargetsProvider,
+        : DebugLaunchProviderBase,
+        IDebugProfileLaunchTargetsProvider,
         IDebugProfileLaunchTargetsProvider2,
         IDebugProfileLaunchTargetsProvider3,
-        IDebugProfileLaunchTargetsProvider4
+        IDebugProfileLaunchTargetsProvider4,
+        IDebugLaunchHost
     {
         private readonly ConfiguredProject project;
         private readonly ITestAdapterSettings adapterSettings;
@@ -36,6 +38,7 @@ namespace Launcher
                     Guard.Debug.NotNull(outputGroups);
                     this.launcher = new(this.services,
                                         this.adapterSettings,
+                                        this,
                                         outputGroups,
                                         this.ProjectHier,
                                         this.project.Services.ThreadingPolicy,
@@ -58,6 +61,7 @@ namespace Launcher
             IEnumerable<Lazy<IVsHierarchy, IOrderPrecedenceMetadataView>> vsProjects,
             [Import(typeof(SVsServiceProvider))]IServiceProvider services,
             Lazy<IDebuggerImageTypeService> imageTypeService)
+            : base(project)
         {
             this.project = project;
             this.adapterSettings = adapterSettings;
@@ -96,8 +100,15 @@ namespace Launcher
             {
                 return;
             }
-            this.ProjectHier.GetVsProject()
-                .AddBuildDependency(otherProject.GetVsProject());
+            try
+            {
+                otherProject.GetVsProject()
+                    .AddBuildDependency(this.ProjectHier.GetVsProject());
+            }
+            catch (Exception)
+            {
+
+            }
         }
 
         public Task OnAfterLaunchAsync(DebugLaunchOptions launchOptions, ILaunchProfile profile)
@@ -125,8 +136,9 @@ namespace Launcher
                 Target = entry,
                 WorkingDir = profile.WorkingDirectory,
                 Environment = profile.EnvironmentVariables
-            }, cancellationToken);
-            return new[] { settings };
+            }, cancellationToken).NoAwait();
+            //return new[] { settings };
+            return settings is not null ? new[] { settings } : Array.Empty<IDebugLaunchSettings>();
         }
 
         public bool SupportsProfile(ILaunchProfile profile)
@@ -146,8 +158,11 @@ namespace Launcher
                                 ILaunchProfile profile,
                                 IReadOnlyList<VsDebugTargetProcessInfo> processInfos)
         {
-            var pids = processInfos.Select(x => x.dwProcessId).ToArray();
-            this.Launcher.RegisterPids(pids);
+            if (processInfos?.Count > 0)
+            {
+                var pids = processInfos.Select(x => x.dwProcessId).ToArray();
+                this.Launcher.RegisterPids(pids);
+            }
             return Task.CompletedTask;
         }
 
@@ -162,5 +177,20 @@ namespace Launcher
             ILaunchProfile profile,
             IReadOnlyList<IDebugLaunchSettings> debugLaunchSettings)
             => Task.CompletedTask;
+
+        Task IDebugLaunchHost.LaunchAsync(DebugLaunchSettings settings, CancellationToken cancellationToken)
+        {
+            return base.LaunchAsync(settings);
+        }
+
+        public override Task<IReadOnlyList<IDebugLaunchSettings>> QueryDebugTargetsAsync(DebugLaunchOptions launchOptions)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override Task<bool> CanLaunchAsync(DebugLaunchOptions launchOptions)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

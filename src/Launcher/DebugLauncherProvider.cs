@@ -17,7 +17,7 @@ namespace Launcher
     [ExportDebugger(Constants.GenericDebuggerName)]
     [AppliesTo($"{Constants.VsTestConsoleCapability} & !{Constants.GenericVsTestConsoleAsProfileCapability}")]
     [PartCreationPolicy(CreationPolicy.Shared)]
-    internal sealed class DebugLauncherProvider : DebugLaunchProviderBase
+    internal sealed class DebugLauncherProvider : DebugLaunchProviderBase, IDebugLaunchHost
     {
         private readonly ILaunchSettingsProvider settingsProvider;
         private readonly ITestAdapterSettings adapterSettings;
@@ -95,6 +95,7 @@ namespace Launcher
 
                 this.launcher ??= new(this.ServiceProvider,
                                       this.adapterSettings,
+                                      this,
                                       outputGroupsService,
                                       (IVsHierarchy)this.IVsProject,
                                       this.ThreadingService,
@@ -197,6 +198,11 @@ namespace Launcher
             var entry =new Target(viewModel.Mode, path, viewModel.SelectedEntry?.ProjectId);
             this.mruService.PushEntryAsync(entry, cancellationToken).Forget();
             return entry;
+        }
+
+        Task IDebugLaunchHost.LaunchAsync(DebugLaunchSettings settings, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
         }
     }
 }

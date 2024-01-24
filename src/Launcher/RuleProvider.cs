@@ -6,6 +6,7 @@ using Microsoft.VisualStudio.ProjectSystem.Properties;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Events;
 using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.Threading;
 
 namespace Launcher
 {
@@ -36,28 +37,34 @@ namespace Launcher
             this.additionalRule = additionalRule;
             this.launchSettingsProvider = launchSettingsProvider;
 
-            threading.JoinableTaskFactory.StartOnIdle(async () =>
+            SolutionEvents.OnAfterBackgroundSolutionLoadComplete += initialize;
+        }
+
+        private void initialize(object sender, EventArgs e)
+        {
+            SolutionEvents.OnAfterBackgroundSolutionLoadComplete -= initialize;
+            Task.Run(async () =>
             {
+                await TaskScheduler.Default;
                 ILaunchSettings? settings;
-                settings = await launchSettingsProvider
-                    .WaitForFirstSnapshot((int)TimeSpan.FromSeconds(30).TotalMilliseconds)
-                    .NoAwait();
+                while (true)
+                {
+                    try
+                    {
+                        settings = await launchSettingsProvider
+                            .WaitForFirstSnapshot((int)TimeSpan.FromSeconds(10).TotalMilliseconds)
+                            .NoAwait();
+                        break;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
+                }
                 if (settings is not null)
                 {
                     createLink();
                     onProfileUpdated(settings);
-                }
-                else
-                {
-                    await threading.SwitchToUIThread();
-                    services.GetSolution()
-                    .GetProperty((int)__VSPROPID4.VSPROPID_IsSolutionFullyLoaded, out var pvar)
-                    .RequireOk();
-                    var loaded = Convert.ToBoolean(pvar);
-                    if (loaded)
-                        onAfterBackgroundSolutionLoadComplete(null, null);
-                    else
-                        SolutionEvents.OnAfterBackgroundSolutionLoadComplete += onAfterBackgroundSolutionLoadComplete;
                 }
             }).FileAndForget();
         }
