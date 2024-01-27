@@ -50,5 +50,17 @@
                 ;
 
         }
+
+        internal static class DebugCommands
+        {
+            internal static Guid DebugCommandSet               = new("{6E87CFAD-6C05-4ADF-9CD7-3B7943875B7C}");
+            internal static Guid ProjectDebugContextMenuCmdSet = new("{1496A755-94DE-11D0-8C3F-00C04FC2AAE2}");
+            internal const int StartDebugTargetCommandId       = 0x101;
+            internal const int StartProjectCommandId           = 0x164;
+            internal const int StartWithoutDebuggingCommandId  = 0x167;
+            internal const int StepIntoNewInstanceCommandId    = 0x165;
+
+            //internal static Guid ClassCommandViewCmdSet = new("{6E87CFAD-6C05-4ADF-9CD7-3B79438}");
+        }
     }
 }

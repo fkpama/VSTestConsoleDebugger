@@ -1,6 +1,8 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks.Dataflow;
 using System.Windows.Markup;
+using Launcher.Debugger;
+using Launcher.Models;
 using Microsoft.Build.Framework.XamlTypes;
 using Microsoft.VisualStudio.ProjectSystem.Properties;
 using Microsoft.VisualStudio.Shell;
@@ -23,7 +25,10 @@ namespace Launcher
         private readonly ConfiguredProject project;
         private readonly IAdditionalRuleDefinitionsService additionalRule;
         private readonly ILaunchSettingsProvider2 launchSettingsProvider;
+        private readonly ITargetSerializer targetSerializer;
+        private readonly IDebugLaunchCommandHook launchCommandHook;
         private ActionBlock<ILaunchSettings>? actionBlock;
+        private readonly Lazy<MsTestProject> msProject;
         private IDisposable? subscription;
 
         [ImportingConstructor]
@@ -31,11 +36,26 @@ namespace Launcher
                             IAdditionalRuleDefinitionsService additionalRule,
                             SVsServiceProvider services,
                             IProjectThreadingService threading,
+                            [ImportMany(ExportContractNames.VsTypes.IVsProject)]
+                            IEnumerable<Lazy<IVsProject, IOrderPrecedenceMetadataView>> vsProjects,
+                            ITargetSerializer serializer,
+                            IDebugLaunchCommandHook launchCommandHook,
                             ILaunchSettingsProvider3 launchSettingsProvider)
         {
             this.project = project;
             this.additionalRule = additionalRule;
             this.launchSettingsProvider = launchSettingsProvider;
+            this.targetSerializer = serializer;
+            this.launchCommandHook = launchCommandHook;
+            this.msProject = new(() =>
+            {
+                var vsProj = vsProjects.ToImportCollection(project).First().Value;
+                var msTestProject = new MsTestProject(vsProj,
+                                                      serializer,
+                                                      services.GetLazyService<SVsSolution, IVsSolution>());
+                this.launchCommandHook.Add(msTestProject);
+                return msTestProject;
+            });
 
             SolutionEvents.OnAfterBackgroundSolutionLoadComplete += initialize;
         }
@@ -80,12 +100,26 @@ namespace Launcher
             {
                 this.addGenericDebugger();
             }
+
+            if (!hasCapa)
+            {
+                if (this.msProject.IsValueCreated)
+                {
+                    this.msProject.Value.OnProfileUpdated(null);
+                    this.launchCommandHook.Remove(this.msProject.Value);
+                }
+            }
+            else
+            {
+                this.msProject.Value.OnProfileUpdated(value);
+                this.launchCommandHook.Add(this.msProject.Value);
+            }
         }
 
         private void createLink()
         {
             if (this.actionBlock is null)
-                launchSettingsProvider.SourceBlock.LinkTo(actionBlock = new(onProfileUpdated));
+                this.subscription = launchSettingsProvider.SourceBlock.LinkTo(actionBlock = new(onProfileUpdated));
         }
         private void onAfterBackgroundSolutionLoadComplete(object sender, EventArgs e)
         {

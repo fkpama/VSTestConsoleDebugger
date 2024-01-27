@@ -32,14 +32,14 @@ internal sealed partial class TargetValueProvider : ILaunchProfileExtensionValue
 
     private readonly ConditionalWeakTable<string, TypeContext> targetTypes = new();
     //private readonly ConfiguredProject project;
-    private readonly MruFileSerializer serializer;
+    private readonly ITargetSerializer serializer;
     //private readonly Dictionary<ProjectSelectorAction, TypeContext> context = new();
     private readonly ITargetValueProviderHelper helper;
 
     [ImportingConstructor]
     public TargetValueProvider(
         ConfiguredProject project,
-        MruFileSerializer serializer,
+        ITargetSerializer serializer,
         IProjectThreadingService projectThreadingService,
         [Import(typeof(SVsServiceProvider))] IServiceProvider services,
         [ImportMany(ExportContractNames.VsTypes.IVsProject)]
@@ -50,7 +50,7 @@ internal sealed partial class TargetValueProvider : ILaunchProfileExtensionValue
                                         vsProjects),
               serializer)
     { }
-    public TargetValueProvider(ITargetValueProviderHelper helper, MruFileSerializer serializer)
+    public TargetValueProvider(ITargetValueProviderHelper helper, ITargetSerializer serializer)
     {
         this.helper = helper;
         this.serializer = serializer;

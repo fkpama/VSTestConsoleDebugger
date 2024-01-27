@@ -4,10 +4,10 @@ using Sodiware.IO;
 
 namespace Launcher.Models
 {
-    [Export]
+    [Export(typeof(ITargetSerializer))]
     [ProjectSystemContract(ProjectSystemContractScope.ConfiguredProject, ProjectSystemContractProvider.Extension)]
     [AppliesTo(Constants.VsTestConsoleCapability)]
-    internal sealed class MruFileSerializer
+    internal sealed class MruFileSerializer : ITargetSerializer
     {
         private static char[] s_separator = new[] { Separator };
         private static char[] s_newLineSeparators = new[] { '\r', '\n' };
@@ -169,7 +169,7 @@ namespace Launcher.Models
             type = val;
             return true;
         }
-        internal ProjectSelectorAction GetTargetType(string serializedValue)
+        public ProjectSelectorAction GetTargetType(string serializedValue)
         {
             if (!TryGetTargetType(serializedValue, out var type))
             {
@@ -179,12 +179,12 @@ namespace Launcher.Models
             return type.Value;
         }
 
-        internal bool IsValid(JObject jobject)
+        public bool IsValid(JObject jobject)
         {
             var model = TargetModel.Deserialize(jobject);
             return model?.IsValid == true;
         }
-        internal bool IsValid(string s)
+        public bool IsValid(string s)
         {
             var sp = s.Split(s_separator);
             string path;

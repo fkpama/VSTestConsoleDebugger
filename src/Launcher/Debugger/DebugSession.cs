@@ -3,13 +3,13 @@ using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
+using Sodiware.VisualStudio.Debugger;
 using Sodiware.VisualStudio.Events;
 using Sodiware.VisualStudio.Logging;
 
 namespace Launcher.Debugger;
 
-internal class DebugSession
-    : IVsDebuggerEvents, IDisposable
+internal class DebugSession : IDisposable
 {
     const string s_processIdPattern = "Process Id: ";
     const string s_namePattern = ", Name: ";
@@ -22,6 +22,7 @@ internal class DebugSession
     private Process? testHostProcess;
     private readonly IProjectThreadingService threading;
     private readonly AsyncLazy<IVsDebugger> debugger;
+    private readonly IVsHierarchy projectHier;
     private readonly ILogger log;
     private bool disposed = true;
     private TaskCompletionSource<int> vsTestConsolePidTask = new();
@@ -44,8 +45,13 @@ internal class DebugSession
     internal DebugSession(ProcessStartInfo startInfo,
                           IProjectThreadingService threading,
                           AsyncLazy<IVsDebugger> debugger,
+                          IVsHierarchy projectHier,
                           ILogger log)
     {
+        this.log = log ?? Log.Logger;
+        this.threading = threading;
+        this.debugger = debugger;
+        this.projectHier = projectHier;
         startInfo.RedirectStandardOutput = true;
         startInfo.RedirectStandardError = true;
         this.process = new()
@@ -56,9 +62,6 @@ internal class DebugSession
         this.process.OutputDataReceived += this.Process_OutputDataReceived;
         this.process.ErrorDataReceived += this.Process_ErrorDataReceived;
         this.process.Exited += this.Process_Exited;
-        this.threading = threading;
-        this.debugger = debugger;
-        this.log = log;
     }
 
     public Task<int> StartAsync(CancellationToken cancellationToken)
@@ -91,16 +94,37 @@ internal class DebugSession
         this.Close();
     }
 
-    private void Close()
+    public void Close()
     {
+        log.LogVerbose("Closing DebugSession");
         DebuggerEvents.Stop -= onDebuggingStop;
         if (this.ProcessStarted)
         {
-            this.process.Kill();
-            this.process.Close();
-            this.process.Dispose();
-            this.ProcessStarted = false;
-            this.killTestHostProcess();
+            try
+            {
+                this.killTestHostProcess();
+            }
+            catch (Exception ex)
+            {
+                log.LogError($"Error killing testhost process: {ex.Message}");
+            }
+            try
+            {
+                if (!this.process.HasExited)
+                {
+                    this.process.Kill();
+                    this.process.Close();
+                }
+            }
+            catch(Exception ex)
+            {
+                log.LogError($"Error Killing process: {ex.Message}");
+            }
+            finally
+            {
+                this.ProcessStarted = false;
+                this.process.Dispose();
+            }
         }
     }
 
@@ -109,15 +133,22 @@ internal class DebugSession
         if (this.testHostProcess is not null
             && this.testHostProcess.HasExited == false)
         {
-            this.testHostProcess.Kill();
-            this.testHostProcess.Close();
-            this.testHostProcess.Dispose();
-            this.testHostProcess = null;
+            try
+            {
+                this.testHostProcess.Kill();
+                this.testHostProcess.Close();
+                this.testHostProcess.Dispose();
+            }
+            finally
+            {
+                this.testHostProcess = null;
+            }
         }
     }
 
     private void Process_Exited(object sender, EventArgs e)
     {
+        this.log.LogInformation($"vstest.console Process exited ({this.process.ExitCode})");
         this.ProcessStarted = false;
     }
 
@@ -159,34 +190,7 @@ internal class DebugSession
         GC.SuppressFinalize(this);
     }
     private void setFlags(SessionFlags flag, bool value)
-                => this.flags = value ? this.flags | flag : this.flags & ~flag;
+        => this.flags = value ? this.flags | flag : this.flags & ~flag;
 
-    internal void Add(uint[] pids)
-    {
-        this.threading.ExecuteSynchronously(async () =>
-        {
-            await this.threading.SwitchToUIThread();
-            this.debugger.GetValue().AdviseDebuggerEvents(this, out this.cookie).RequireOk();
-        });
-    }
-
-    int IVsDebuggerEvents.OnModeChange(DBGMODE dbgmodeNew)
-    {
-        if (dbgmodeNew == DBGMODE.DBGMODE_Design
-            || dbgmodeNew == DBGMODE.DBGMODE_Break)
-        {
-            if (this.process is not null)
-            {
-                try
-                {
-                    this.process.Kill();
-                }
-                catch(Exception ex)
-                {
-                    log.LogError($"Failed to shutdown vstest.console process: {ex.Message}");
-                }
-            }
-        }
-        return VSConstantsEx.S_OK;
-    }
+    internal void Add(uint[] pids) { }
 }

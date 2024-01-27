@@ -1,7 +1,9 @@
 ﻿using System.Threading.Tasks.Dataflow;
+using Launcher.Debugger;
 using Microsoft.VisualStudio.ProjectSystem.Properties;
 using Microsoft.VisualStudio.ProjectSystem.References;
 using Microsoft.VisualStudio.Shell.Events;
+using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
 using VSLangProj;
 using static Sodiware.VisualStudio.VSConstantsEx;

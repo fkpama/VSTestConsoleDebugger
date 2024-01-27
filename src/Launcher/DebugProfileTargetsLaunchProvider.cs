@@ -21,7 +21,7 @@ namespace Launcher
     {
         private readonly ConfiguredProject project;
         private readonly ITestAdapterSettings adapterSettings;
-        private readonly MruFileSerializer serializer;
+        private readonly ITargetSerializer serializer;
         private readonly IServiceProvider services;
         private readonly Lazy<IDebuggerImageTypeService> imageTypeService;
         private readonly OrderPrecedenceImportCollection<IVsHierarchy> hierCollection;
@@ -55,7 +55,7 @@ namespace Launcher
             ConfiguredProject project,
             ITestAdapterSettings adapterSettings,
             ILaunchSettingsProvider settingsProvider,
-            MruFileSerializer serializer,
+            ITargetSerializer serializer,
             IOutputGroupsService outputGroups,
             [ImportMany(ExportContractNames.VsTypes.IVsHierarchy)]
             IEnumerable<Lazy<IVsHierarchy, IOrderPrecedenceMetadataView>> vsProjects,

@@ -14,7 +14,7 @@ namespace Launcher.ViewModels
         private readonly Window window;
         private readonly ProjectSelectorViewModel viewModel;
         private readonly ILaunchSettingsProvider settingsProvider;
-        private readonly MruFileSerializer serializer;
+        private readonly ITargetSerializer serializer;
         private readonly SVsServiceProvider services;
         private readonly IProjectThreadingService threadingService;
 
@@ -22,7 +22,7 @@ namespace Launcher.ViewModels
             Window window,
             ProjectSelectorViewModel viewModel,
             ILaunchSettingsProvider settingsProvider,
-            MruFileSerializer serializer,
+            ITargetSerializer serializer,
             SVsServiceProvider service,
             IProjectThreadingService threadingService)
         {

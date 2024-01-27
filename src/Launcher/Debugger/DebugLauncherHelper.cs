@@ -55,6 +55,9 @@ namespace Launcher.Debugger
 
         public async Task<DebugLaunchSettings?> LaunchAsync(LaunchRequest request, CancellationToken cancellationToken)
         {
+            await Logger.GetOutputWindowPane(Constants.LoggerPaneId)
+                .ClearAsync()
+                .ConfigureAwait(false);
             var exe = await this.outputs
                 .GetKeyOutputAsync(cancellationToken)
                 .NoAwait();
@@ -93,31 +96,10 @@ namespace Launcher.Debugger
             sessionProcess = new DebugSession(si,
                                               this.threadingService,
                                               this.m_debugger,
+                                              this.projectHier,
                                               log);
 
-            int pid;
-            Guid engine;
-            DebugLaunchSettings? settings = null;
-            if (request.Target.Mode == ProjectSelectorAction.Project)
-            {
-                Task.Run(async () =>
-                {
-                    try
-                    {
-                        await this.BuildAsync(request.Target).NoAwait();
-                    }
-                    catch (BuildFailedException)
-                    {
-                        return;
-                    }
-                    (pid, engine, settings) = await doStartAsync().NoAwait();
-                    await this.host.LaunchAsync(settings, cancellationToken).NoAwait();
-                }).FileAndForget();
-            }
-            else
-            {
-                (pid, engine, settings) = await doStartAsync().NoAwait();
-            }
+            var (_, _, settings) = await doStartAsync().NoAwait();
 
             return settings;
 
@@ -201,19 +183,6 @@ namespace Launcher.Debugger
         public void Dispose()
         {
             this.sessionProcess?.Dispose();
-        }
-
-        internal async Task BuildAsync(Target target)
-        {
-            if (target.Id is null)
-                return;
-            if (!this.threadingService.IsOnMainThread)
-                await this.threadingService.SwitchToUIThread();
-
-            var solution = this.services.GetSolution();
-            var project = (IVsProject?)solution.GetProjectOfGuid(target.Id.Value)
-                ?? throw new NotImplementedException();
-            await project.BuildAsync().NoAwait();
         }
 
         internal void RegisterPids(uint[] pids)

@@ -18,15 +18,15 @@ namespace Launcher
         private List<Target>? mruList;
         private readonly object sync = new();
         private readonly Lazy<string> mruFilePath;
-        private readonly MruFileSerializer serializer;
+        private readonly ITargetSerializer serializer;
 
         internal string MruFilePath => mruFilePath.Value;
 
         public ConfiguredProject ConfiguredProject { get; }
-        public MruFileSerializer Serializer => this.serializer;
+        public ITargetSerializer Serializer => this.serializer;
 
         public TestAdapterMruService(ConfiguredProject project,
-            MruFileSerializer serializer,
+            ITargetSerializer serializer,
             IServiceProvider serviceProvider)
         {
             this.ConfiguredProject = project;

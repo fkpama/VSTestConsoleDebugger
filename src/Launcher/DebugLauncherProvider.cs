@@ -26,21 +26,11 @@ namespace Launcher
         private readonly IOutputGroupsService outputGroupsService;
         private DebugLauncherHelper? launcher;
         private readonly OrderPrecedenceImportCollection<IVsProject> projectCollection;
-        private string? vsTestConsolePath;
         private readonly TestAdapterMruService mruService;
         internal IVsProject IVsProject
         {
             get => this.projectCollection.First().Value;
         }
-        public string VsTestConsolePath
-        {
-            get
-            {
-                vsTestConsolePath ??= Utils.FindVsTestConsole();
-                return vsTestConsolePath;
-            }
-        }
-
         [ImportingConstructor]
         internal DebugLauncherProvider(ConfiguredProject project,
                                        ILaunchSettingsProvider settings,
@@ -50,7 +40,7 @@ namespace Launcher
                                        IServiceProvider serviceProvider,
                                        [ImportMany(ExportContractNames.VsTypes.IVsProject)]
                                        IEnumerable<Lazy<IVsProject, IOrderPrecedenceMetadataView>> vsProjects,
-                                       MruFileSerializer mruFileSerializer,
+                                       ITargetSerializer mruFileSerializer,
                                        IOutputGroupsService outputGroupsService)
             : base(project)
         {

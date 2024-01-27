@@ -1,6 +1,7 @@
 ﻿using System.IO.Packaging;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using Launcher.Controls;
 using Launcher.Models;
@@ -179,7 +180,7 @@ namespace Launcher
             profile.OtherSettings?.TryGetValue(Constants.ProfileParams.Target, out val);
             return val;
         }
-        internal static string? GetTarget(this ILaunchProfile profile, MruFileSerializer serializer)
+        internal static string? GetTarget(this ILaunchProfile profile, ITargetSerializer serializer)
         {
             object? val = profile.GetTargetValue();
             return val switch
@@ -196,7 +197,7 @@ namespace Launcher
                     : null;
         }
 
-        internal static ProjectSelectorAction? GetTargetType(this ILaunchProfile profile, MruFileSerializer serializer)
+        internal static ProjectSelectorAction? GetTargetType(this ILaunchProfile profile, ITargetSerializer serializer)
         {
             if(profile.OtherSettings?
                 .TryGetValue(Constants.ProfileParams.Target, out var val) == true
@@ -207,7 +208,7 @@ namespace Launcher
             return null;
         }
 
-        internal static Target GetEntry(this ILaunchProfile profile, MruFileSerializer serializer)
+        internal static Target GetEntry(this ILaunchProfile profile, ITargetSerializer serializer)
         {
             Debug.Assert(profile.IsVsTestConsole());
             var target = profile.GetTarget(serializer);
@@ -217,6 +218,35 @@ namespace Launcher
             }
             Assumes.NotNull(target);
             return serializer.TryDeserializeEntry(target);
+        }
+
+        internal static IVsHierarchy? GetTargetProject(this IVsSolution solution,
+                                                       IVsHierarchy adapterProjectHier,
+                                                       Target target)
+        {
+            if (target.Mode != ProjectSelectorAction.Project)
+                return null;
+
+            if (target.Id.HasValue)
+            {
+                try
+                {
+                    return solution.GetProjectOfGuid(target.Id.Value);
+                }
+                catch(COMException) { }
+            }
+
+            if (target.TargetPath.IsPresent())
+            {
+                var tpath = target.TargetPath;
+                if (!Path.IsPathRooted(tpath))
+                {
+                    tpath = Path.Combine(adapterProjectHier.GetProjectDirectory());
+                }
+                return solution.GetProjectOfUniqueName(tpath);
+            }
+
+            return null;
         }
     }
 }
