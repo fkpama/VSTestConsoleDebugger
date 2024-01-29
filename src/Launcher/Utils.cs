@@ -136,7 +136,7 @@ namespace Launcher
             Guid projectId = Guid.Empty;
             foreach(var project in solution.GetAllProjects(__VSENUMPROJFLAGS.EPF_LOADEDINSOLUTION))
             {
-                if (project.IsMiscProject() || !project.IsBuildable())
+                if (!project.IsBuildable())
                     continue;
 
                 if (testAdapterProject is not null)

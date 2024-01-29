@@ -1,18 +1,12 @@
 ﻿using System.Threading.Tasks.Dataflow;
-using Launcher.Debugger;
-using Microsoft.VisualStudio.ProjectSystem.Properties;
 using Microsoft.VisualStudio.ProjectSystem.References;
-using Microsoft.VisualStudio.Shell.Events;
-using Microsoft.VisualStudio.Shell.Interop;
-using Microsoft.VisualStudio.Threading;
-using VSLangProj;
 using static Sodiware.VisualStudio.VSConstantsEx;
 
 namespace Launcher;
 
 [Export(ExportContractNames.Scopes.ConfiguredProject, typeof(IProjectCapabilitiesProvider))]
 [AppliesTo(ProjectCapabilities.Cps)]
-internal class VsTestConsoleCapabilityProvider : ConfiguredProjectCapabilitiesProviderBase
+internal sealed class VsTestConsoleCapabilityProvider : ConfiguredProjectCapabilitiesProviderBase
 {
     private readonly object sync = new();
     private bool previousResult = false;
@@ -32,7 +26,7 @@ internal class VsTestConsoleCapabilityProvider : ConfiguredProjectCapabilitiesPr
         this.capabilities = Empty.CapabilitiesSet;
     }
 
-    protected async Task<bool> GetIsApplicableAsync(CancellationToken cancellationToken)
+    private async Task<bool> getIsApplicableAsync(CancellationToken cancellationToken)
     {
 
         var properties = this.project.Services.ProjectPropertiesProvider
@@ -57,8 +51,7 @@ internal class VsTestConsoleCapabilityProvider : ConfiguredProjectCapabilitiesPr
         var assemblyName = t3.Result;
         var hasPackage = hasPackageTask.Result is not null;
 
-        var result = !isTestProject &&
-            !testProject &&
+        var result = !isTestProject && !testProject &&
             hasPackage &&
             assemblyName.EndsWithOI(Constants.TestAdapterFileExtension);
         if (previousResult != result)
@@ -75,7 +68,7 @@ internal class VsTestConsoleCapabilityProvider : ConfiguredProjectCapabilitiesPr
     {
         var wasApplicable = this.capabilities.Count > 0;
 
-        var isApplicable = await GetIsApplicableAsync(cancellationToken).NoAwait();
+        var isApplicable = await getIsApplicableAsync(cancellationToken).NoAwait();
         if (isApplicable != wasApplicable)
         {
             if (isApplicable)

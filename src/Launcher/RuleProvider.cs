@@ -25,11 +25,11 @@ namespace Launcher
         private readonly ConfiguredProject project;
         private readonly IAdditionalRuleDefinitionsService additionalRule;
         private readonly ILaunchSettingsProvider2 launchSettingsProvider;
-        private readonly ITargetSerializer targetSerializer;
         private readonly IDebugLaunchCommandHook launchCommandHook;
         private ActionBlock<ILaunchSettings>? actionBlock;
         private readonly Lazy<MsTestProject> msProject;
         private IDisposable? subscription;
+        private bool solutionClosed;
 
         [ImportingConstructor]
         public RuleProvider(ConfiguredProject project,
@@ -45,7 +45,6 @@ namespace Launcher
             this.project = project;
             this.additionalRule = additionalRule;
             this.launchSettingsProvider = launchSettingsProvider;
-            this.targetSerializer = serializer;
             this.launchCommandHook = launchCommandHook;
             this.msProject = new(() =>
             {
@@ -58,13 +57,25 @@ namespace Launcher
             });
 
             SolutionEvents.OnAfterBackgroundSolutionLoadComplete += initialize;
+            SolutionEvents.OnBeforeCloseSolution += onBeforeCloseSolution;
+            SolutionEvents.OnAfterCloseSolution += onAfterCloseSolution;
         }
 
+        private void unregisterEvents()
+        {
+            //SolutionEvents.OnAfterBackgroundSolutionLoadComplete -= onAfterBackgroundSolutionLoadComplete;
+            SolutionEvents.OnAfterBackgroundSolutionLoadComplete -= initialize;
+            SolutionEvents.OnBeforeCloseSolution -= onBeforeCloseSolution;
+            SolutionEvents.OnAfterCloseSolution -= onAfterCloseSolution;
+        }
         private void initialize(object sender, EventArgs e)
         {
             SolutionEvents.OnAfterBackgroundSolutionLoadComplete -= initialize;
+            if (this.solutionClosed) return;
             Task.Run(async () =>
             {
+                if (this.solutionClosed)
+                    return;
                 await TaskScheduler.Default;
                 ILaunchSettings? settings;
                 while (true)
@@ -91,6 +102,7 @@ namespace Launcher
 
         private void onProfileUpdated(ILaunchSettings value)
         {
+            if (this.solutionClosed) return;
             var hasCapa = this.project.Capabilities.Contains(Constants.VsTestConsoleCapability);
             if (!hasCapa || value.HasEmptyVsTestLaunchProfile())
             {
@@ -118,18 +130,45 @@ namespace Launcher
 
         private void createLink()
         {
-            if (this.actionBlock is null)
-                this.subscription = launchSettingsProvider.SourceBlock.LinkTo(actionBlock = new(onProfileUpdated));
-        }
-        private void onAfterBackgroundSolutionLoadComplete(object sender, EventArgs e)
-        {
-            SolutionEvents.OnAfterBackgroundSolutionLoadComplete -= onAfterBackgroundSolutionLoadComplete;
-            createLink();
-            if (!this.launchSettingsProvider.HasEmptyVsTestLaunchProfile())
+            if (!this.solutionClosed && this.actionBlock is null)
             {
-                this.addGenericDebugger();
+                this.subscription = launchSettingsProvider.SourceBlock.LinkTo(actionBlock = new(onProfileUpdated));
             }
         }
+
+        private void onBeforeCloseSolution(object sender, EventArgs e)
+        {
+            this.solutionClosed = true;
+            SolutionEvents.OnAfterBackgroundSolutionLoadComplete -= initialize;
+            SolutionEvents.OnBeforeCloseSolution -= onBeforeCloseSolution;
+            this.removeProject();
+            this.actionBlock?.Complete();
+            this.actionBlock = null;
+        }
+
+        private void removeProject()
+        {
+            if (this.msProject.IsValueCreated)
+                this.launchCommandHook.Remove(this.msProject.Value);
+        }
+
+        private void onAfterCloseSolution(object sender, EventArgs e)
+        {
+            SolutionEvents.OnAfterCloseSolution -= onAfterCloseSolution;
+            this.Dispose();
+            this.subscription = null;
+        }
+
+        //private void onAfterBackgroundSolutionLoadComplete(object sender, EventArgs e)
+        //{
+        //    SolutionEvents.OnAfterBackgroundSolutionLoadComplete -= onAfterBackgroundSolutionLoadComplete;
+        //    if (this.solutionClosed) return;
+        //    createLink();
+        //    if (!this.launchSettingsProvider.HasEmptyVsTestLaunchProfile())
+        //    {
+        //        this.addGenericDebugger();
+        //    }
+        //}
 
         private void addGenericDebugger()
         {
@@ -225,8 +264,12 @@ namespace Launcher
 
         public void Dispose()
         {
+            this.removeProject();
+            this.unregisterEvents();
             this.actionBlock?.Complete();
+            this.actionBlock = null;
             this.subscription?.Dispose();
+            this.subscription = null;
         }
     }
 }
